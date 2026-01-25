@@ -1,21 +1,22 @@
 import os
-from dotenv import load_dotenv
-import streamlit as st
-import google.generativeai as genai
-
+# dotenv é útil localmente, mas no Streamlit Cloud pode não estar instalado
 try:
-    from fpdf import FPDF
-except ImportError:
-    FPDF = None
-# ============================
-# INICIALIZAÇÃO DA API GEMINI
-# ============================
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass  # se não existir, seguimos (no cloud usamos st.secrets ou variáveis de ambiente)
 
-load_dotenv()
-API_KEY = os.getenv("GEMINI_API_KEY")
+# prioriza Streamlit secrets, depois env var
+API_KEY = None
+try:
+    API_KEY = st.secrets.get("GEMINI_API_KEY")
+except Exception:
+    API_KEY = None
 
 if not API_KEY:
-    st.error("API Key do Gemini não encontrada. Verifique o arquivo .env.")
+    API_KEY = os.getenv("GEMINI_API_KEY")
+if not API_KEY:
+    st.error("API Key do Gemini não encontrada. Configure GEMINI_API_KEY em Secrets (Streamlit) ou como variável de ambiente.")
     st.stop()
 
 genai.configure(api_key=API_KEY)
@@ -1127,3 +1128,4 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
