@@ -1,4 +1,31 @@
 import os
+import streamlit as st
+import google.generativeai as genai
+
+# dotenv é útil localmente, mas no Streamlit Cloud pode não estar instalado
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass  # se não existir, seguimos (no cloud usamos st.secrets ou variáveis de ambiente)
+
+# prioriza Streamlit secrets, depois env var
+API_KEY = None
+try:
+    API_KEY = st.secrets.get("GEMINI_API_KEY")
+except Exception:
+    API_KEY = None
+
+if not API_KEY:
+    API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not API_KEY:
+    st.error("API Key do Gemini não encontrada. Configure GEMINI_API_KEY em Secrets (Streamlit) ou como variável de ambiente.")
+    st.stop()
+
+genai.configure(api_key=API_KEY)
+model = genai.GenerativeModel("gemini-2.0-flash")
+import os
 # dotenv é útil localmente, mas no Streamlit Cloud pode não estar instalado
 try:
     from dotenv import load_dotenv
@@ -374,7 +401,6 @@ def gerar_pdf(nome, sind, caso, epa, dx, tx):
     pdf.output(path)
     return path
 
-if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 if "selected_syndrome" not in st.session_state:
@@ -838,15 +864,14 @@ elif st.session_state.screen == "case_intro":
 # ============================
 elif st.session_state.screen == "anamnesis":
 
-# =========================
-# HISTÓRICO DA CONVERSA
-# =========================
+    # =========================
+    # HISTÓRICO DA CONVERSA
+    # =========================
 
-        # Mostrar resultados de exames solicitados (persistentes)
+    # Mostrar resultados de exames solicitados (persistentes)
     if st.session_state.get("exam_results"):
         st.markdown("**Resultados de exames solicitados:**")
         for ex, laudo in st.session_state.exam_results.items():
-            # converte quebras de linha em <br> para exibição vertical
             laudo_html = str(laudo).replace("\n", "<br>")
             st.markdown(
                 f"<div class='chat-bubble-ai'><b>Laudo ({ex}):</b><br>{laudo_html}</div>",
@@ -870,7 +895,6 @@ elif st.session_state.screen == "anamnesis":
                 f"<div class='chat-bubble-ai'><b>Sistema:</b><pre style='white-space:pre-wrap'>{msg}</pre></div>",
                 unsafe_allow_html=True
             )
-
     # =========================
     # INPUT DA PERGUNTA
     # =========================
@@ -1128,4 +1152,5 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
