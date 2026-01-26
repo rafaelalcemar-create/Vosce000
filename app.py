@@ -85,64 +85,99 @@ def communication_summary_text():
     if len(flags) > 5:
         lines.append(f"- (+{len(flags)-5} outras)")
     return "\n".join(lines)
-def responder_como_paciente(pergunta):
+def responder_como_paciente(pergunta: str) -> str:
     """
-    Responde como paciente de OSCE.
-    - Respostas factuais (idade/nome/sexo) são retornadas a partir do caso (determinístico).
-    - Perguntas narrativas são encaminhadas ao LLM, com 'truth' no prompt para evitar contradições.
+    Paciente OSCE com controle de vazamento de informação:
+    - Responde apenas ao que foi perguntado (1–2 frases).
+    - Não lista sintomas adicionais.
+    - Mantém coerência usando clinical_truth.
     """
+
     # pega dados do caso (se houver)
     case = {}
     if st.session_state.selected_syndrome and st.session_state.selected_case:
         case = cases.get(st.session_state.selected_syndrome, {}).get(st.session_state.selected_case, {})
     truth = case.get("clinical_truth", {})
 
-    q = pergunta.lower().strip()
+    q = (pergunta or "").lower().strip()
 
-    # Respostas determinísticas para fatos
+    # --------- Respostas determinísticas (fatos) ----------
     if any(k in q for k in ["nome", "como se chama", "seu nome", "chama-se"]):
-        # se quiser nomes fixos, adicione "nome" em clinical_truth dos casos
         nome = truth.get("nome")
-        if nome:
-            return f"Meu nome é {nome}."
-        return "Meu nome não foi informado."
+        return f"Meu nome é {nome}." if nome else "Meu nome não foi informado."
 
     if "idade" in q or "quantos anos" in q:
         idade = truth.get("idade")
-        if idade:
-            return f"Tenho {idade} anos."
-        return "Idade não informada."
+        return f"Tenho {idade} anos." if idade else "Idade não informada."
 
-    if any(k in q for k in ["sexo", "masculino", "feminino", "gênero"]):
+    if any(k in q for k in ["sexo", "gênero", "genero", "masculino", "feminino"]):
         sexo = truth.get("sexo")
-        if sexo:
-            return f"Sou {sexo}."
-        return "Sexo não informado."
+        return f"Sou {sexo}." if sexo else "Sexo não informado."
 
-    # Respostas sobre sintomas — use truth para manter coerência (se disponível)
-    if any(k in q for k in ["dor", "queima", "queimar", "sente", "febre", "náusea", "vomito", "vômito", "urina"]):
-        # passamos a truth ao modelo para mantê-lo coerente
+    # --------- Router: identifica o FOCO da pergunta ----------
+    # (você pode expandir esse dicionário com mais temas)
+    topics = {
+        "febre": ["febre", "temperatura", "calafrio", "calafrios"],
+        "dor_lombar": ["dor nas costas", "dor lombar", "costa", "flanco", "giordano"],
+        "disuria": ["ardor", "ardência", "ardencia", "queimação", "queimacao", "dor ao urinar", "disúria", "disuria"],
+        "frequencia": ["toda hora", "muitas vezes", "frequente", "frequência", "frequencia", "polaqui", "poliúria", "poliuria"],
+        "urgencia": ["urgência", "urgencia", "segurar", "corre pro banheiro", "vontade súbita"],
+        "hematúria": ["sangue na urina", "urina vermelha", "hematúria", "hematuria"],
+        "nausea": ["náusea", "nausea", "vômito", "vomito"],
+        "historia": ["começou", "há quanto tempo", "desde quando", "início", "inicio", "evolução", "evolucao"],
+    }
+
+    focus = None
+    for topic, keys in topics.items():
+        if any(k in q for k in keys):
+            focus = topic
+            break
+
+    # Se não achou foco, responde curto e pede próxima pergunta
+    # (isso reduz muito o "monólogo" inicial)
+    if focus is None:
         prompt = f"""
-Você é um paciente em simulação clínica de OSCE. Responda de forma leiga e curta.
-MANTENHA COERÊNCIA: os sintomas fixos do caso são: {truth}
+Você é um paciente em simulação clínica de OSCE.
+
+REGRAS OBRIGATÓRIAS (muito importante):
+- Responda APENAS ao que foi perguntado.
+- NÃO ofereça sintomas extras nem faça resumo do caso.
+- Resposta curta: no máximo 1–2 frases.
+- Linguagem leiga.
+- Se a pergunta for ampla/vaga, peça que o aluno especifique ("O que exatamente você quer saber?").
+
+Fatos do caso (NÃO altere): {truth}
 
 Pergunta do aluno:
 "{pergunta}"
-Responda apenas como paciente (linguagem leiga), sem antecipar diagnóstico.
 """
         resp = model.generate_content(prompt)
         return resp.text.strip()
 
-    # fallback: se não for fato nem sintoma, deixe o LLM responder com contexto (sem mudar facts)
+    # --------- Resposta guiada por foco (anti-vazamento) ----------
     prompt = f"""
-Você é um paciente em simulação clínica de OSCE. Informações padronizadas do caso: {truth}
+Você é um paciente em simulação clínica de OSCE.
+
+FATOS DO CASO (verdade fixa; não invente nem altere): {truth}
+
+O aluno perguntou algo sobre o seguinte FOCO: {focus}
+
+REGRAS OBRIGATÓRIAS:
+- Responda SOMENTE sobre o FOCO ({focus}).
+- NÃO cite outros sintomas (mesmo que existam no caso) se não forem do FOCO.
+- Resposta curta: 1 frase (no máximo 2).
+- Linguagem leiga.
+- Não mencione diagnóstico, exames ou tratamento.
+- Se o foco não existir no caso, responda negativamente ("não", "não tenho isso").
+
 Pergunta do aluno:
 "{pergunta}"
-Responda de forma leiga e NÃO altere fatos como idade, sexo ou sintomas.
-"""
-    resposta = model.generate_content(prompt)
-    return resposta.text.strip()
 
+Responda agora como paciente:
+"""
+    resp = model.generate_content(prompt)
+    return resp.text.strip()
+    
 EXAM_COST = {
     "EAS": 5,
     "Urinocultura": 10,
@@ -1358,6 +1393,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
