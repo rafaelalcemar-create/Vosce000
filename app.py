@@ -1093,24 +1093,24 @@ elif st.session_state.screen == "anamnesis":
     # =========================
     pergunta = st.text_input("Pergunta:", key="pergunta_atual")
 
-    # =========================
-    # ENVIAR PERGUNTA
-    # =========================
-    if st.button("Enviar"):
-        if pergunta.strip() != "":
-            # salva pergunta do aluno
-st.session_state.chat_history.append(("aluno", pergunta))
+# =========================
+# ENVIAR PERGUNTA
+# =========================
+if st.button("Enviar"):
+    if pergunta.strip() != "":
+        # salva pergunta do aluno
+        st.session_state.chat_history.append(("aluno", pergunta))
 
-# avalia postura/comunicação nesta fala
-evaluate_communication_turn(pergunta)
+        # avalia postura/comunicação nesta fala
+        evaluate_communication_turn(pergunta)
 
-# gera resposta do paciente OSCE
-resposta = responder_como_paciente(pergunta)
+        # gera resposta do paciente OSCE
+        resposta = responder_como_paciente(pergunta)
 
-            # salva resposta do paciente
-            st.session_state.chat_history.append(("paciente", resposta))
+        # salva resposta do paciente
+        st.session_state.chat_history.append(("paciente", resposta))
 
-            st.rerun()
+        st.rerun()
 
     # =========================
     # NAVEGAÇÃO
@@ -1358,6 +1358,7 @@ st.caption(f"Exames: gasto {st.session_state.osce['exam_spent']} / orçamento {s
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
