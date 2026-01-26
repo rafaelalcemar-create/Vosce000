@@ -748,7 +748,68 @@ cases = {
       }
     }
 }
+# ============================
+# RUBRICA OSCE (CHECKLIST + GLOBAL RATING)
+# ============================
 
+OSCE_WEIGHTS = {
+    "anamnesis": 0.25,
+    "physical_exam": 0.15,
+    "exams": 0.15,
+    "diagnosis": 0.20,
+    "treatment": 0.20,
+    "communication": 0.05,
+}
+
+def init_osce_scoring():
+    if "osce" not in st.session_state:
+        st.session_state.osce = {
+            "scores": {
+                "anamnesis": 0.0,
+                "physical_exam": 0.0,
+                "exams": 0.0,
+                "diagnosis": 0.0,
+                "treatment": 0.0,
+                "communication": 10.0,
+            },
+            "checklists": {
+                "anamnesis": [],
+                "physical_exam": [],
+                "exams": [],
+                "diagnosis": [],
+                "treatment": [],
+                "communication": [],
+            },
+            "flags": [],
+            "exam_budget": 100,   # pontos de orçamento
+            "exam_spent": 0,
+            "exam_log": [],
+        }
+
+def weighted_total_score():
+    init_osce_scoring()
+    total = 0.0
+    for k, w in OSCE_WEIGHTS.items():
+        total += float(st.session_state.osce["scores"].get(k, 0.0)) * w
+    return round(total, 2)
+
+def add_checklist(domain: str, item: str, done: bool, weight: int = 1):
+    init_osce_scoring()
+    st.session_state.osce["checklists"][domain].append({
+        "item": item,
+        "done": bool(done),
+        "weight": int(weight)
+    })
+
+def score_from_checklist(domain: str) -> float:
+    init_osce_scoring()
+    items = st.session_state.osce["checklists"].get(domain, [])
+    if not items:
+        return 0.0
+    num = sum(i["weight"] for i in items if i["done"])
+    den = sum(i["weight"] for i in items) or 1
+    # normaliza 0-10
+    return round((num / den) * 10.0, 1)
 # ============================
 # TELA 1 — HOME
 # ============================
@@ -1135,6 +1196,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
