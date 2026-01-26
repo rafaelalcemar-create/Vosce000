@@ -1060,8 +1060,6 @@ elif st.session_state.screen == "anamnesis":
     # =========================
     # HISTÓRICO DA CONVERSA
     # =========================
-
-    # Mostrar resultados de exames solicitados (persistentes)
     if st.session_state.get("exam_results"):
         st.markdown("**Resultados de exames solicitados:**")
         for ex, laudo in st.session_state.exam_results.items():
@@ -1071,7 +1069,6 @@ elif st.session_state.screen == "anamnesis":
                 unsafe_allow_html=True
             )
 
-    # depois renderizar o chat_history como já faz
     for sender, msg in st.session_state.chat_history:
         if sender == "aluno":
             st.markdown(
@@ -1083,39 +1080,36 @@ elif st.session_state.screen == "anamnesis":
                 f"<div class='chat-bubble-ai'><b>Paciente:</b> {msg}</div>",
                 unsafe_allow_html=True
             )
-        else:  # "exame" ou "sistema"
+        else:
             st.markdown(
                 f"<div class='chat-bubble-ai'><b>Sistema:</b><pre style='white-space:pre-wrap'>{msg}</pre></div>",
                 unsafe_allow_html=True
             )
+
     # =========================
     # INPUT DA PERGUNTA
     # =========================
     pergunta = st.text_input("Pergunta:", key="pergunta_atual")
 
-# =========================
-# ENVIAR PERGUNTA
-# =========================
-if st.button("Enviar"):
-    if pergunta.strip() != "":
-        # salva pergunta do aluno
-        st.session_state.chat_history.append(("aluno", pergunta))
+    # =========================
+    # ENVIAR PERGUNTA
+    # =========================
+    if st.button("Enviar"):
+        if pergunta.strip():
+            st.session_state.chat_history.append(("aluno", pergunta))
 
-        # avalia postura/comunicação nesta fala
-        evaluate_communication_turn(pergunta)
+            # avalia postura/comunicação
+            evaluate_communication_turn(pergunta)
 
-        # gera resposta do paciente OSCE
-        resposta = responder_como_paciente(pergunta)
+            resposta = responder_como_paciente(pergunta)
+            st.session_state.chat_history.append(("paciente", resposta))
 
-        # salva resposta do paciente
-        st.session_state.chat_history.append(("paciente", resposta))
-
-        st.rerun()
+            st.rerun()
 
     # =========================
     # NAVEGAÇÃO
     # =========================
-    col1, col2, col3 = st.columns([1,1,1])
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if st.button("Ir para exame físico"):
             st.session_state.screen = "physical_exam"
@@ -1136,12 +1130,13 @@ elif st.session_state.screen == "exams":
 
     st.markdown("<h1>Solicitação de exames</h1>", unsafe_allow_html=True)
     init_osce_scoring()
-st.caption(f"Orçamento de exames: {st.session_state.osce['exam_budget']} | Gasto atual: {st.session_state.osce['exam_spent']}")
-    case = cases[
-        st.session_state.selected_syndrome
-    ][
-        st.session_state.selected_case
-    ]
+
+    st.caption(
+        f"Orçamento de exames: {st.session_state.osce['exam_budget']} | "
+        f"Gasto atual: {st.session_state.osce['exam_spent']}"
+    )
+
+    case = cases[st.session_state.selected_syndrome][st.session_state.selected_case]
 
     exame = st.selectbox(
         "Selecione o exame:",
@@ -1305,11 +1300,16 @@ elif st.session_state.screen == "final_report":
 
     st.markdown("<h1>Relatório Final</h1>", unsafe_allow_html=True)
     init_osce_scoring()
-st.subheader("Score OSCE (ponderado)")
-st.write(f"**Total:** {weighted_total_score()} / 10")
-st.write("**Domínios:**", st.session_state.osce["scores"])
-st.info(communication_summary_text())
-st.caption(f"Exames: gasto {st.session_state.osce['exam_spent']} / orçamento {st.session_state.osce['exam_budget']}")
+
+    st.subheader("Score OSCE (ponderado)")
+    st.write(f"**Total:** {weighted_total_score()} / 10")
+    st.write("**Domínios:**", st.session_state.osce["scores"])
+    st.info(communication_summary_text())
+    st.caption(
+        f"Exames: gasto {st.session_state.osce['exam_spent']} / "
+        f"orçamento {st.session_state.osce['exam_budget']}"
+    )
+
     st.write("### Avaliação da anamnese")
     st.info(st.session_state.anamnesis_feedback)
 
@@ -1358,6 +1358,7 @@ st.caption(f"Exames: gasto {st.session_state.osce['exam_spent']} / orçamento {s
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
