@@ -32,6 +32,59 @@ if not API_KEY:
 
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel("gemini-2.0-flash")
+# ============================
+# AVALIAÇÃO DE COMUNICAÇÃO/POSTURA (regras objetivas + flags)
+# ============================
+
+COMM_BAD_PATTERNS = [
+    ("linguagem_hostil", ["burro", "idiota", "cala a boca", "ridículo", "ridicula", "foda-se", "se vira"]),
+    ("culpabilizacao", ["a culpa é sua", "isso é porque você", "você fez errado", "você provocou"]),
+    ("desrespeito", ["não me interessa", "tanto faz", "você não sabe nada"]),
+]
+
+COMM_GOOD_PATTERNS = [
+    ("empatia", ["entendo", "imagino", "deve ser", "sinto muito", "vamos com calma"]),
+    ("consentimento", ["tudo bem se eu", "posso te perguntar", "com sua permissão", "você autoriza"]),
+    ("privacidade", ["pergunta pessoal", "vou perguntar algo íntimo", "se sentir desconfortável"]),
+    ("explicacao", ["vou explicar", "o objetivo é", "isso serve para", "para entender melhor"]),
+]
+
+def evaluate_communication_turn(student_text: str):
+    init_osce_scoring()
+    t = (student_text or "").lower()
+
+    # flags ruins
+    for tag, patterns in COMM_BAD_PATTERNS:
+        if any(p in t for p in patterns):
+            st.session_state.osce["flags"].append({
+                "type": tag,
+                "text": student_text.strip()
+            })
+            add_checklist("communication", f"Evitar: {tag}", False, weight=2)
+
+    # sinais bons
+    for tag, patterns in COMM_GOOD_PATTERNS:
+        if any(p in t for p in patterns):
+            add_checklist("communication", f"Demonstrou: {tag}", True, weight=1)
+
+    # sempre tem item base
+    add_checklist("communication", "Manteve linguagem respeitosa", True, weight=2)
+
+    # recalcula score de comunicação
+    st.session_state.osce["scores"]["communication"] = score_from_checklist("communication")
+
+def communication_summary_text():
+    init_osce_scoring()
+    flags = st.session_state.osce["flags"]
+    score = st.session_state.osce["scores"]["communication"]
+    if not flags:
+        return f"Comunicação/postura: {score}/10. Sem flags de desrespeito."
+    lines = [f"Comunicação/postura: {score}/10.", "Flags identificadas:"]
+    for f in flags[:5]:
+        lines.append(f"- {f['type']}: “{f['text']}”")
+    if len(flags) > 5:
+        lines.append(f"- (+{len(flags)-5} outras)")
+    return "\n".join(lines)
 def responder_como_paciente(pergunta):
     """
     Responde como paciente de OSCE.
@@ -90,29 +143,57 @@ Responda de forma leiga e NÃO altere fatos como idade, sexo ou sintomas.
     resposta = model.generate_content(prompt)
     return resposta.text.strip()
 
+EXAM_COST = {
+    "EAS": 5,
+    "Urinocultura": 10,
+    "Ultrassom": 20,
+    "TC abdome": 40
+}
+
 def fornecer_resultado_exame(exame):
     """
-    Gera um laudo template, consistente e determinístico, baseado no caso.
-    Não usa a API para evitar saídas imprevisíveis.
+    Laudo determinístico + avaliação de pertinência e custo.
+    Mantém log e orçamento em st.session_state.osce
     """
+    init_osce_scoring()
+
     case = cases[st.session_state.selected_syndrome][st.session_state.selected_case]
     truth = case["clinical_truth"]
     indications = case["exam_indications"]
 
-    # se exame não indicado
+    # custo e budget
+    cost = EXAM_COST.get(exame, 10)
+    st.session_state.osce["exam_spent"] += cost
+
+    # se exame não aplicável
     if exame not in indications:
+        st.session_state.osce["exam_log"].append({"exam": exame, "pertinence": "não aplicável", "cost": cost})
+        add_checklist("exams", f"{exame}: escolha pertinente", False, weight=2)
+        st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
         return "Exame não aplicável a este caso clínico."
 
     indication = indications[exame]
 
-    # inaceitável / inadequado
+    # pertinência
+    if indication == "inadequado":
+        pertinence = "inadequado"
+        add_checklist("exams", f"{exame}: evitar exame desnecessário", False, weight=3)
+    else:
+        pertinence = "adequado"
+        add_checklist("exams", f"{exame}: exame indicado", True, weight=2)
+
+    # penaliza excesso de orçamento
+    if st.session_state.osce["exam_spent"] > st.session_state.osce["exam_budget"]:
+        add_checklist("exams", "Respeitou orçamento/stevardship", False, weight=2)
+    else:
+        add_checklist("exams", "Respeitou orçamento/stevardship", True, weight=2)
+
+    # -------- Laudos determinísticos --------
     if indication == "inadequado":
         resultado = f"O exame solicitado ({exame}) não é indicado para este quadro clínico e não contribui para o diagnóstico."
     else:
-        # Templates por exame
         if exame == "EAS":
             if indication in ["alterado", "hematúria"]:
-                # EAS simplificado
                 leucocitos = "1-5 /campo"
                 nitrito = "Negativo"
                 sangue = "Negativo"
@@ -145,7 +226,6 @@ def fornecer_resultado_exame(exame):
 
         elif exame == "Urinocultura":
             if indication == "positiva":
-                # Exemplo realista: E. coli sensível a XX
                 resultado = (
                     "Exame: Urinocultura\n"
                     "Crescimento: >10^5 UFC/mL\n"
@@ -177,20 +257,15 @@ def fornecer_resultado_exame(exame):
 
         elif exame == "TC abdome":
             achados = []
-
-            # se exam_indications contém string específica, use-a como guia
             ind_text = str(indication).lower() if indication else ""
 
-            # prioridade: indicação descritiva direta (ex: "cálculo ureteral")
             if "cálculo" in ind_text or "ureteral" in ind_text:
                 achados.append(
                     "Imagem hiperdensa em topografia de ureter, compatível com cálculo ureteral, "
                     "associada a discreta dilatação pielocalicial a montante."
                 )
 
-            # sinais associados por truth
             if truth.get("hematúria") and truth.get("dor_lombar"):
-                # só acrescenta se não duplicar info do caso
                 if not any("cálculo" in a.lower() for a in achados):
                     achados.append(
                         "Sinais compatíveis com litíase: foco hiperdenso em ureter e hidronefrose discreta a montante."
@@ -198,7 +273,7 @@ def fornecer_resultado_exame(exame):
 
             if truth.get("febre") and truth.get("calafrios"):
                 achados.append(
-                    "Rim com aumento discreto de volume e estriações do parênquima, sugestivas de processo inflamatório (compatible com pielonefrite)."
+                    "Rim com aumento discreto de volume e estriações do parênquima, sugestivas de processo inflamatório (compatível com pielonefrite)."
                 )
 
             if truth.get("tabagismo") and truth.get("hematúria") == "macroscópica":
@@ -212,23 +287,21 @@ def fornecer_resultado_exame(exame):
                     "Achados: Ausência de alterações tomográficas significativas."
                 )
             else:
-                resultado = (
-                    "Exame: TC de abdome/pelve\n"
-                    "Achados:\n- " + "\n- ".join(achados) + "\n"
-                )
-
+                resultado = "Exame: TC de abdome/pelve\nAchados:\n- " + "\n- ".join(achados) + "\n"
         else:
-            # fallback
             resultado = f"Exame: {exame}\nResultado: {indication}"
 
-    # Persistir resultado em session_state para não sumir ao navegar
+    # Persistir resultado
     if "exam_results" not in st.session_state:
         st.session_state.exam_results = {}
     st.session_state.exam_results[exame] = resultado
 
-    # também adiciona ao histórico de chat como mensagem de sistema/exame (permanece)
-    st.session_state.chat_history.append(("exame", f"[Laudo - {exame}]\n{resultado}"))
+    # log OSCE
+    st.session_state.osce["exam_log"].append({"exam": exame, "pertinence": pertinence, "cost": cost})
+    st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
 
+    # histórico
+    st.session_state.chat_history.append(("exame", f"[Laudo - {exame}] (custo {cost})\n{resultado}"))
     return resultado
 # ----------------------------
 # Funções: esperado e avaliação do exame físico
@@ -950,10 +1023,13 @@ elif st.session_state.screen == "anamnesis":
     if st.button("Enviar"):
         if pergunta.strip() != "":
             # salva pergunta do aluno
-            st.session_state.chat_history.append(("aluno", pergunta))
+st.session_state.chat_history.append(("aluno", pergunta))
 
-            # gera resposta do paciente OSCE
-            resposta = responder_como_paciente(pergunta)
+# avalia postura/comunicação nesta fala
+evaluate_communication_turn(pergunta)
+
+# gera resposta do paciente OSCE
+resposta = responder_como_paciente(pergunta)
 
             # salva resposta do paciente
             st.session_state.chat_history.append(("paciente", resposta))
@@ -983,7 +1059,8 @@ elif st.session_state.screen == "anamnesis":
 elif st.session_state.screen == "exams":
 
     st.markdown("<h1>Solicitação de exames</h1>", unsafe_allow_html=True)
-
+    init_osce_scoring()
+st.caption(f"Orçamento de exames: {st.session_state.osce['exam_budget']} | Gasto atual: {st.session_state.osce['exam_spent']}")
     case = cases[
         st.session_state.selected_syndrome
     ][
@@ -1196,6 +1273,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
