@@ -177,14 +177,6 @@ Responda agora como paciente:
 """
     resp = model.generate_content(prompt)
     return resp.text.strip()
-    
-EXAM_COST = {
-    "EAS": 5,
-    "Urinocultura": 10,
-    "Ultrassom": 20,
-    "TC abdome": 40
-}
-
 def fornecer_resultado_exame(exame):
     """
     Laudo determinístico + avaliação de pertinência e custo.
@@ -195,10 +187,6 @@ def fornecer_resultado_exame(exame):
     case = cases[st.session_state.selected_syndrome][st.session_state.selected_case]
     truth = case["clinical_truth"]
     indications = case["exam_indications"]
-
-    # custo e budget
-    cost = EXAM_COST.get(exame, 10)
-    st.session_state.osce["exam_spent"] += cost
 
     # se exame não aplicável
     if exame not in indications:
@@ -216,12 +204,6 @@ def fornecer_resultado_exame(exame):
     else:
         pertinence = "adequado"
         add_checklist("exams", f"{exame}: exame indicado", True, weight=2)
-
-    # penaliza excesso de orçamento
-    if st.session_state.osce["exam_spent"] > st.session_state.osce["exam_budget"]:
-        add_checklist("exams", "Respeitou orçamento/stevardship", False, weight=2)
-    else:
-        add_checklist("exams", "Respeitou orçamento/stevardship", True, weight=2)
 
     # -------- Laudos determinísticos --------
     if indication == "inadequado":
@@ -332,12 +314,11 @@ def fornecer_resultado_exame(exame):
     st.session_state.exam_results[exame] = resultado
 
     # log OSCE
-    st.session_state.osce["exam_log"].append({"exam": exame, "pertinence": pertinence, "cost": cost})
     st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
 
-    # histórico
-    st.session_state.chat_history.append(("exame", f"[Laudo - {exame}] (custo {cost})\n{resultado}"))
-    return resultado
+   # histórico
+# NÃO adicionar laudo no chat_history para não duplicar na anamnese.
+return resultado
 # ----------------------------
 # Funções: esperado e avaliação do exame físico
 # ----------------------------
@@ -532,41 +513,6 @@ def deterministic_treatment_score(correct_dx: str, student_tx: str):
         feedback.append(f"Nota educacional: {notes}")
 
     return score, "\n".join(feedback)
-def gerar_pdf(nome, sind, caso, epa, dx, tx):
-    if FPDF is None:
-        return None
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-
-    pdf.multi_cell(0, 10, "Relatório Final - V-OSCE Urologia", align="C")
-    pdf.ln(5)
-    pdf.multi_cell(0, 8, f"Aluno: {nome}")
-    pdf.multi_cell(0, 8, f"Síndrome: {sind}")
-    pdf.multi_cell(0, 8, f"Caso: {caso}")
-    pdf.ln(5)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.multi_cell(0, 8, "Avaliação da Anamnese:")
-    pdf.set_font("Arial", size=12)
-    pdf.multi_cell(0, 7, epa)
-    pdf.ln(5)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.multi_cell(0, 8, "Avaliação do Diagnóstico:")
-    pdf.set_font("Arial", size=12)
-    pdf.multi_cell(0, 7, dx)
-    pdf.ln(5)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.multi_cell(0, 8, "Avaliação do Tratamento:")
-    pdf.set_font("Arial", size=12)
-    pdf.multi_cell(0, 7, tx)
-
-    path = "relatorio_vosce.pdf"
-    pdf.output(path)
-    return path
 
     st.session_state.chat_history = []
 
@@ -965,9 +911,6 @@ def init_osce_scoring():
                 "communication": [],
             },
             "flags": [],
-            "exam_budget": 100,   # pontos de orçamento
-            "exam_spent": 0,
-            "exam_log": [],
         }
 
 def weighted_total_score():
@@ -1166,11 +1109,6 @@ elif st.session_state.screen == "exams":
     st.markdown("<h1>Solicitação de exames</h1>", unsafe_allow_html=True)
     init_osce_scoring()
 
-    st.caption(
-        f"Orçamento de exames: {st.session_state.osce['exam_budget']} | "
-        f"Gasto atual: {st.session_state.osce['exam_spent']}"
-    )
-
     case = cases[st.session_state.selected_syndrome][st.session_state.selected_case]
 
     exame = st.selectbox(
@@ -1269,23 +1207,48 @@ elif st.session_state.screen == "physical_exam":
         key="input_physical"
     )
 
-    if st.button("Enviar exame físico"):
-        st.session_state.student_physical_exam = exame_fisico
+   if st.button("Enviar exame físico"):
+    st.session_state.student_physical_exam = exame_fisico
 
-        eval_res = evaluate_physical_exam(exame_fisico, expected)
-        st.session_state.physical_exam_feedback = eval_res["feedback_text"]
+    eval_res = evaluate_physical_exam(exame_fisico, expected)
+    det_fb = eval_res["feedback_text"]
 
-        # registra no histórico
-        st.session_state.chat_history.append(
-            ("aluno", f"[Exame físico] {exame_fisico}")
-        )
-        st.session_state.chat_history.append(
-            ("sistema", f"[Feedback exame físico]\n{st.session_state.physical_exam_feedback}")
-        )
+    # score determinístico no domínio "physical_exam"
+    init_osce_scoring()
+    st.session_state.osce["scores"]["physical_exam"] = eval_res["score"]
 
-        st.success("Exame físico enviado com sucesso.")
-        st.info(st.session_state.physical_exam_feedback)
+    # Complemento por IA: feedback clínico objetivo + o que faltou
+    correct = cases[st.session_state.selected_syndrome][st.session_state.selected_case]["diagnosis"]
+    prompt = f"""
+Você é um preceptor avaliador de OSCE. Responda em português técnico, objetivo e prático.
 
+Diagnóstico mais provável do caso (gabarito): {correct}
+
+Exame físico descrito pelo aluno:
+{exame_fisico}
+
+Checklist do caso:
+- Itens essenciais esperados: {expected.get("required", [])}
+- Itens sugeridos: {expected.get("suggested", [])}
+- Itens não relevantes: {expected.get("not_relevant", [])}
+
+Com base nisso, forneça:
+1) O que foi bom (máx 3 bullets)
+2) O que faltou e por que importa (máx 3 bullets)
+3) Um exemplo de exame físico ideal (máx 6 linhas)
+Não use linguagem informal.
+"""
+    gen = model.generate_content(prompt)
+    ai_fb = (gen.text or "").strip()
+
+    st.session_state.physical_exam_feedback = det_fb + "\n\n" + ai_fb
+
+    # registra no histórico (uma vez)
+    st.session_state.chat_history.append(("aluno", f"[Exame físico] {exame_fisico}"))
+    st.session_state.chat_history.append(("sistema", f"[Feedback exame físico]\n{st.session_state.physical_exam_feedback}"))
+
+    st.success("Exame físico enviado com sucesso.")
+    st.info(st.session_state.physical_exam_feedback)
     st.markdown("---")
 
     if st.button("Prosseguir para solicitação de exames"):
@@ -1296,6 +1259,8 @@ elif st.session_state.screen == "physical_exam":
 # TELA 8 — TRATAMENTO
 # ============================
 elif st.session_state.screen == "treatment":
+st.markdown("<h1>Tratamento</h1>", unsafe_allow_html=True)
+st.caption("Agora proponha a conduta/terapêutica. (Ex.: antibiótico, analgesia, orientações e retorno.)")
 
     st.info(st.session_state.diagnosis_feedback)
 
@@ -1340,10 +1305,8 @@ elif st.session_state.screen == "final_report":
     st.write(f"**Total:** {weighted_total_score()} / 10")
     st.write("**Domínios:**", st.session_state.osce["scores"])
     st.info(communication_summary_text())
-    st.caption(
-        f"Exames: gasto {st.session_state.osce['exam_spent']} / "
-        f"orçamento {st.session_state.osce['exam_budget']}"
-    )
+
+    st.markdown("---")
 
     st.write("### Avaliação da anamnese")
     st.info(st.session_state.anamnesis_feedback)
@@ -1357,29 +1320,10 @@ elif st.session_state.screen == "final_report":
     st.write("### Avaliação do tratamento")
     st.info(st.session_state.treatment_feedback)
 
-    # PDF (apenas se FPDF disponível)
-    if FPDF is None:
-        st.warning("Biblioteca FPDF não instalada. PDF indisponível.")
-    else:
-        file = gerar_pdf(
-            st.session_state.student_name,
-            st.session_state.selected_syndrome,
-            st.session_state.selected_case,
-            st.session_state.anamnesis_feedback,
-            st.session_state.diagnosis_feedback,
-            st.session_state.treatment_feedback
-        )
-
-        if file:
-            with open(file, "rb") as f:
-                st.download_button(
-                    "Baixar PDF",
-                    f,
-                    file_name="relatorio_vosce.pdf"
-                )
+    st.markdown("---")
 
     # navegação final
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("Voltar para anamnese"):
             st.session_state.screen = "anamnesis"
@@ -1388,11 +1332,36 @@ elif st.session_state.screen == "final_report":
         if st.button("Voltar para tratamento"):
             st.session_state.screen = "treatment"
             st.rerun()
+    with col3:
+        if st.button("Escolher outro caso"):
+            st.session_state.selected_case = None
+            st.session_state.exam_results = {}
+            st.session_state.chat_history = []
+            st.session_state.anamnesis_feedback = ""
+            st.session_state.diagnosis_feedback = ""
+            st.session_state.treatment_feedback = ""
+            st.session_state.physical_exam_feedback = ""
+            st.session_state.screen = "select_case"
+            st.rerun()
 
-    if st.button("Finalizar"):
+    if st.button("Voltar ao menu de síndromes"):
+        st.session_state.selected_syndrome = None
+        st.session_state.selected_case = None
+        st.session_state.exam_results = {}
+        st.session_state.chat_history = []
+        st.session_state.anamnesis_feedback = ""
+        st.session_state.diagnosis_feedback = ""
+        st.session_state.treatment_feedback = ""
+        st.session_state.physical_exam_feedback = ""
+        st.session_state.screen = "select_syndrome"
+        st.rerun()
+
+    if st.button("Finalizar (reset geral)"):
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
+
 
 
 
