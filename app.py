@@ -190,7 +190,14 @@ def fornecer_resultado_exame(exame):
 
     # se exame não aplicável
     if exame not in indications:
-        st.session_state.osce["exam_log"].append({"exam": exame, "pertinence": "não aplicável", "cost": cost})
+           if "exam_log" not in st.session_state.osce:
+        st.session_state.osce["exam_log"] = []
+
+    if exame not in indications:
+        st.session_state.osce["exam_log"].append({"exam": exame, "pertinence": "não aplicável"})
+        add_checklist("exams", f"{exame}: escolha pertinente", False, weight=2)
+        st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
+        return "Exame não aplicável a este caso clínico."
         add_checklist("exams", f"{exame}: escolha pertinente", False, weight=2)
         st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
         return "Exame não aplicável a este caso clínico."
@@ -313,12 +320,12 @@ def fornecer_resultado_exame(exame):
         st.session_state.exam_results = {}
     st.session_state.exam_results[exame] = resultado
 
-    # log OSCE
+       # log OSCE
     st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
 
-   # histórico
-# NÃO adicionar laudo no chat_history para não duplicar na anamnese.
-return resultado
+    # NÃO adicionar laudo no chat_history para não duplicar na anamnese.
+    return resultado
+    
 # ----------------------------
 # Funções: esperado e avaliação do exame físico
 # ----------------------------
@@ -513,8 +520,6 @@ def deterministic_treatment_score(correct_dx: str, student_tx: str):
         feedback.append(f"Nota educacional: {notes}")
 
     return score, "\n".join(feedback)
-
-    st.session_state.chat_history = []
 
 if "selected_syndrome" not in st.session_state:
     st.session_state.selected_syndrome = None
@@ -1382,6 +1387,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
