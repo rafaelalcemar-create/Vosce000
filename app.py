@@ -420,7 +420,83 @@ def evaluate_physical_exam(text, expected):
         "score": score,
         "feedback_text": "\n".join(feedback_lines)
     }
+# ============================
+# VALIDADOR DETERMINÍSTICO DE TRATAMENTO (regras básicas)
+# ============================
 
+TREATMENT_RULES = {
+    "Cistite aguda não complicada": {
+        "must_include_any": ["nitrofuranto", "fosfomic", "trimetoprim", "sulfametoxazol", "cefalo", "beta-lact"],
+        "avoid_any": ["tc", "tomografia", "ciproflox", "quinolona"],
+        "notes": "Opções usuais: nitrofurantoína 5 dias ou fosfomicina dose única (varia por protocolo local)."
+    },
+    "Pielonefrite aguda": {
+        "must_include_any": ["antib", "cef", "ciproflox", "fluoroquin", "ampicil", "aminoglico"],
+        "avoid_any": ["fosfomic", "dose única"],
+        "notes": "Avaliar gravidade, necessidade de internação, cultura e reavaliação 48–72h."
+    },
+    "Cálculo ureteral distal <5 mm": {
+        "must_include_any": ["analges", "aind", "anti-inflam", "hidrata", "tamsulos", "alfa-bloq"],
+        "avoid_any": ["antibiótico", "antibiotico"],
+        "notes": "Conservador se estável; orientar retorno e sinais de alarme."
+    },
+    "Cálculo ureteral >10 mm": {
+        "must_include_any": ["urolog", "proced", "litotrips", "ureterosc", "cirurg"],
+        "avoid_any": [],
+        "notes": "Alta chance de não eliminação espontânea; discutir intervenção."
+    },
+    "Cólica renal com infecção associada": {
+        "must_include_any": ["antib", "dren", "deriv", "nefrost", "duplo j", "urgên", "urgenc"],
+        "avoid_any": ["alta", "casa", "ambulator"],
+        "notes": "Obstrução + infecção = urgência urológica (drenagem + antibiótico)."
+    },
+    "Neoplasia de bexiga até prova em contrário": {
+        "must_include_any": ["cistosc", "urolog", "investig", "encamin"],
+        "avoid_any": ["tratar como infecção", "antibiótico por 7", "antibiotico por 7"],
+        "notes": "Hematúria macroscópica indolor em tabagista: investigação urológica prioritária."
+    },
+    "Hematúria glomerular": {
+        "must_include_any": ["nefro", "protein", "creatin", "pressão", "pa", "investig"],
+        "avoid_any": ["cirurg", "cistoscopia imediata"],
+        "notes": "Sinais nefríticos → linha nefrológica."
+    },
+    "Retenção urinária por HPB": {
+        "must_include_any": ["sonda", "cateter", "alfa-bloq", "tamsulos", "finaster"],
+        "avoid_any": [],
+        "notes": "Desobstrução + terapia farmacológica e seguimento."
+    }
+}
+
+def deterministic_treatment_score(correct_dx: str, student_tx: str):
+    init_osce_scoring()
+    tx = (student_tx or "").lower()
+
+    rules = TREATMENT_RULES.get(correct_dx)
+    if not rules:
+        return 5.0, "Sem regra determinística cadastrada para este diagnóstico. Avaliação seguirá mais pela IA."
+
+    must = rules.get("must_include_any", [])
+    avoid = rules.get("avoid_any", [])
+    notes = rules.get("notes", "")
+
+    must_ok = any(m in tx for m in must) if must else True
+    avoid_bad = any(a in tx for a in avoid) if avoid else False
+
+    add_checklist("treatment", f"Incluiu elementos essenciais ({correct_dx})", must_ok, weight=3)
+    add_checklist("treatment", f"Evitou condutas inadequadas ({correct_dx})", not avoid_bad, weight=3)
+
+    score = score_from_checklist("treatment")
+
+    feedback = []
+    feedback.append(f"Score determinístico (tratamento): {score}/10")
+    if not must_ok:
+        feedback.append("Faltaram elementos essenciais para este diagnóstico.")
+    if avoid_bad:
+        feedback.append("Foram detectadas condutas potencialmente inadequadas para este diagnóstico.")
+    if notes:
+        feedback.append(f"Nota educacional: {notes}")
+
+    return score, "\n".join(feedback)
 def gerar_pdf(nome, sind, caso, epa, dx, tx):
     if FPDF is None:
         return None
@@ -1196,35 +1272,44 @@ elif st.session_state.screen == "treatment":
     tx = st.text_area("Tratamento:")
 
     if st.button("Enviar"):
-        prompt = f"""
-        Avalie o tratamento proposto.
-        Tratamento: {tx}
-        Síndrome: {st.session_state.selected_syndrome}
-        Caso: {st.session_state.selected_case}
+        correct = cases[st.session_state.selected_syndrome][st.session_state.selected_case]["diagnosis"]
 
-        Avaliar:
-        - Adequação
-        - Dose
-        - Duração
-        - Pontos fortes
-        - Pontos fracos
-        - Nota 0 a 10
-        - Tratamento ideal
-        """
+        # 1) score determinístico
+        det_score, det_feedback = deterministic_treatment_score(correct, tx)
+        st.session_state.osce["scores"]["treatment"] = det_score
+
+        # 2) IA complementa (comentário técnico)
+        prompt = f"""
+Você é avaliador clínico. Responda em português técnico e objetivo.
+Diagnóstico correto: {correct}
+Tratamento proposto pelo aluno:
+{tx}
+
+Forneça:
+- Adequação (conduta)
+- Doses/duração (se mencionadas)
+- Pontos fortes
+- Pontos fracos
+- Sugestão de tratamento ideal (resumo)
+Sem linguagem informal.
+"""
         gen = model.generate_content(prompt)
 
-        st.session_state.treatment_feedback = gen.text.strip()
+        st.session_state.treatment_feedback = det_feedback + "\n\n" + gen.text.strip()
         st.session_state.screen = "final_report"
         st.rerun()
-
-
 # ============================
 # TELA 9 — RELATÓRIO FINAL
 # ============================
 elif st.session_state.screen == "final_report":
 
     st.markdown("<h1>Relatório Final</h1>", unsafe_allow_html=True)
-
+    init_osce_scoring()
+st.subheader("Score OSCE (ponderado)")
+st.write(f"**Total:** {weighted_total_score()} / 10")
+st.write("**Domínios:**", st.session_state.osce["scores"])
+st.info(communication_summary_text())
+st.caption(f"Exames: gasto {st.session_state.osce['exam_spent']} / orçamento {st.session_state.osce['exam_budget']}")
     st.write("### Avaliação da anamnese")
     st.info(st.session_state.anamnesis_feedback)
 
@@ -1273,6 +1358,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
