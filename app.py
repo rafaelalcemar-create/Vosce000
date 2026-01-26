@@ -1207,19 +1207,19 @@ elif st.session_state.screen == "physical_exam":
         key="input_physical"
     )
 
-   if st.button("Enviar exame físico"):
-    st.session_state.student_physical_exam = exame_fisico
+    if st.button("Enviar exame físico"):
+        st.session_state.student_physical_exam = exame_fisico
 
-    eval_res = evaluate_physical_exam(exame_fisico, expected)
-    det_fb = eval_res["feedback_text"]
+        eval_res = evaluate_physical_exam(exame_fisico, expected)
+        det_fb = eval_res["feedback_text"]
 
-    # score determinístico no domínio "physical_exam"
-    init_osce_scoring()
-    st.session_state.osce["scores"]["physical_exam"] = eval_res["score"]
+        # score determinístico no domínio "physical_exam"
+        init_osce_scoring()
+        st.session_state.osce["scores"]["physical_exam"] = float(eval_res["score"])
 
-    # Complemento por IA: feedback clínico objetivo + o que faltou
-    correct = cases[st.session_state.selected_syndrome][st.session_state.selected_case]["diagnosis"]
-    prompt = f"""
+        # Complemento por IA: feedback clínico objetivo + o que faltou
+        correct = cases[st.session_state.selected_syndrome][st.session_state.selected_case]["diagnosis"]
+        prompt = f"""
 Você é um preceptor avaliador de OSCE. Responda em português técnico, objetivo e prático.
 
 Diagnóstico mais provável do caso (gabarito): {correct}
@@ -1238,43 +1238,59 @@ Com base nisso, forneça:
 3) Um exemplo de exame físico ideal (máx 6 linhas)
 Não use linguagem informal.
 """
-    gen = model.generate_content(prompt)
-    ai_fb = (gen.text or "").strip()
+        gen = model.generate_content(prompt)
+        ai_fb = (getattr(gen, "text", "") or "").strip()
 
-    st.session_state.physical_exam_feedback = det_fb + "\n\n" + ai_fb
+        st.session_state.physical_exam_feedback = det_fb + ("\n\n" + ai_fb if ai_fb else "")
 
-    # registra no histórico (uma vez)
-    st.session_state.chat_history.append(("aluno", f"[Exame físico] {exame_fisico}"))
-    st.session_state.chat_history.append(("sistema", f"[Feedback exame físico]\n{st.session_state.physical_exam_feedback}"))
+        # registra no histórico (uma vez)
+        st.session_state.chat_history.append(("aluno", f"[Exame físico] {exame_fisico}"))
+        st.session_state.chat_history.append(("sistema", f"[Feedback exame físico]\n{st.session_state.physical_exam_feedback}"))
 
-    st.success("Exame físico enviado com sucesso.")
-    st.info(st.session_state.physical_exam_feedback)
+        st.success("Exame físico enviado com sucesso.")
+        st.info(st.session_state.physical_exam_feedback)
+
     st.markdown("---")
 
-    if st.button("Prosseguir para solicitação de exames"):
-        st.session_state.screen = "exams"
-        st.rerun()
-
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Voltar para anamnese"):
+            st.session_state.screen = "anamnesis"
+            st.rerun()
+    with col2:
+        if st.button("Prosseguir para solicitação de exames"):
+            st.session_state.screen = "exams"
+            st.rerun()
 # ============================
 # TELA 8 — TRATAMENTO
 # ============================
 elif st.session_state.screen == "treatment":
-st.markdown("<h1>Tratamento</h1>", unsafe_allow_html=True)
-st.caption("Agora proponha a conduta/terapêutica. (Ex.: antibiótico, analgesia, orientações e retorno.)")
 
-    st.info(st.session_state.diagnosis_feedback)
+    st.markdown("<h1>Tratamento</h1>", unsafe_allow_html=True)
+    st.caption("Agora proponha a conduta/terapêutica. (Ex.: antibiótico, analgesia, orientações e retorno.)")
 
-    tx = st.text_area("Tratamento:")
+    if st.session_state.get("diagnosis_feedback"):
+        st.info(st.session_state.diagnosis_feedback)
 
-    if st.button("Enviar"):
-        correct = cases[st.session_state.selected_syndrome][st.session_state.selected_case]["diagnosis"]
+    tx = st.text_area("Tratamento:", height=160, key="tx_input")
 
-        # 1) score determinístico
-        det_score, det_feedback = deterministic_treatment_score(correct, tx)
-        st.session_state.osce["scores"]["treatment"] = det_score
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Voltar para diagnóstico"):
+            st.session_state.screen = "diagnosis"
+            st.rerun()
 
-        # 2) IA complementa (comentário técnico)
-        prompt = f"""
+    with col2:
+        if st.button("Enviar tratamento"):
+            correct = cases[st.session_state.selected_syndrome][st.session_state.selected_case]["diagnosis"]
+
+            # 1) score determinístico
+            det_score, det_feedback = deterministic_treatment_score(correct, tx)
+            init_osce_scoring()
+            st.session_state.osce["scores"]["treatment"] = float(det_score)
+
+            # 2) IA complementa (comentário técnico)
+            prompt = f"""
 Você é avaliador clínico. Responda em português técnico e objetivo.
 Diagnóstico correto: {correct}
 Tratamento proposto pelo aluno:
@@ -1288,11 +1304,12 @@ Forneça:
 - Sugestão de tratamento ideal (resumo)
 Sem linguagem informal.
 """
-        gen = model.generate_content(prompt)
+            gen = model.generate_content(prompt)
+            ai_tx = (getattr(gen, "text", "") or "").strip()
 
-        st.session_state.treatment_feedback = det_feedback + "\n\n" + gen.text.strip()
-        st.session_state.screen = "final_report"
-        st.rerun()
+            st.session_state.treatment_feedback = det_feedback + ("\n\n" + ai_tx if ai_tx else "")
+            st.session_state.screen = "final_report"
+            st.rerun()
 # ============================
 # TELA 9 — RELATÓRIO FINAL
 # ============================
@@ -1309,29 +1326,30 @@ elif st.session_state.screen == "final_report":
     st.markdown("---")
 
     st.write("### Avaliação da anamnese")
-    st.info(st.session_state.anamnesis_feedback)
+    st.info(st.session_state.get("anamnesis_feedback", ""))
 
     st.write("### Avaliação do exame físico")
-    st.info(st.session_state.physical_exam_feedback)
+    st.info(st.session_state.get("physical_exam_feedback", ""))
 
     st.write("### Avaliação do diagnóstico")
-    st.info(st.session_state.diagnosis_feedback)
+    st.info(st.session_state.get("diagnosis_feedback", ""))
 
     st.write("### Avaliação do tratamento")
-    st.info(st.session_state.treatment_feedback)
+    st.info(st.session_state.get("treatment_feedback", ""))
 
     st.markdown("---")
 
-    # navegação final
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("Voltar para anamnese"):
             st.session_state.screen = "anamnesis"
             st.rerun()
+
     with col2:
         if st.button("Voltar para tratamento"):
             st.session_state.screen = "treatment"
             st.rerun()
+
     with col3:
         if st.button("Escolher outro caso"):
             st.session_state.selected_case = None
@@ -1341,6 +1359,8 @@ elif st.session_state.screen == "final_report":
             st.session_state.diagnosis_feedback = ""
             st.session_state.treatment_feedback = ""
             st.session_state.physical_exam_feedback = ""
+            st.session_state.student_diagnosis = ""
+            st.session_state.student_physical_exam = ""
             st.session_state.screen = "select_case"
             st.rerun()
 
@@ -1353,6 +1373,8 @@ elif st.session_state.screen == "final_report":
         st.session_state.diagnosis_feedback = ""
         st.session_state.treatment_feedback = ""
         st.session_state.physical_exam_feedback = ""
+        st.session_state.student_diagnosis = ""
+        st.session_state.student_physical_exam = ""
         st.session_state.screen = "select_syndrome"
         st.rerun()
 
@@ -1360,6 +1382,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
