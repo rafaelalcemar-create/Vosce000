@@ -7,48 +7,31 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
-    pass  # se não existir, seguimos (no cloud usamos st.secrets ou variáveis de ambiente)
+    pass
 
-# prioriza Streamlit secrets, depois env var
-API_KEY = None
-try:
-    API_KEY = st.secrets.get("GEMINI_API_KEY")
-except Exception:
-    API_KEY = None
+def get_gemini_key() -> str | None:
+    # 1) Streamlit secrets
+    try:
+        key = st.secrets.get("GEMINI_API_KEY", None)
+        if key:
+            return str(key).strip()
+    except Exception:
+        pass
 
-if not API_KEY:
-    API_KEY = os.getenv("GEMINI_API_KEY")
+    # 2) Env var
+    key = os.getenv("GEMINI_API_KEY")
+    if key:
+        return str(key).strip()
 
-if not API_KEY:
-    st.error("API Key do Gemini não encontrada. Configure GEMINI_API_KEY em Secrets (Streamlit) ou como variável de ambiente.")
-    st.stop()
+    return None
 
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel("gemini-2.0-flash")
-import os
-# dotenv é útil localmente, mas no Streamlit Cloud pode não estar instalado
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    pass  # se não existir, seguimos (no cloud usamos st.secrets ou variáveis de ambiente)
-
-# prioriza Streamlit secrets, depois env var
-API_KEY = None
-try:
-    API_KEY = st.secrets.get("GEMINI_API_KEY")
-except Exception:
-    API_KEY = None
-
-if not API_KEY:
-    API_KEY = os.getenv("GEMINI_API_KEY")
+API_KEY = get_gemini_key()
 if not API_KEY:
     st.error("API Key do Gemini não encontrada. Configure GEMINI_API_KEY em Secrets (Streamlit) ou como variável de ambiente.")
     st.stop()
 
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel("gemini-2.0-flash")
-
 def responder_como_paciente(pergunta):
     """
     Responde como paciente de OSCE.
@@ -1152,5 +1135,6 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
