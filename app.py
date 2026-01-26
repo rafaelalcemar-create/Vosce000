@@ -177,10 +177,10 @@ Responda agora como paciente:
 """
     resp = model.generate_content(prompt)
     return resp.text.strip()
-def fornecer_resultado_exame(exame):
+def fornecer_resultado_exame(exame: str) -> str:
     """
-    Laudo determinístico + avaliação de pertinência e custo.
-    Mantém log e orçamento em st.session_state.osce
+    Laudo determinístico + avaliação de pertinência.
+    Mantém log e pontuação em st.session_state.osce
     """
     init_osce_scoring()
 
@@ -188,16 +188,13 @@ def fornecer_resultado_exame(exame):
     truth = case["clinical_truth"]
     indications = case["exam_indications"]
 
-    # se exame não aplicável
-    if exame not in indications:
-           if "exam_log" not in st.session_state.osce:
+    # garantir log
+    if "exam_log" not in st.session_state.osce:
         st.session_state.osce["exam_log"] = []
 
+    # se exame não aplicável
     if exame not in indications:
         st.session_state.osce["exam_log"].append({"exam": exame, "pertinence": "não aplicável"})
-        add_checklist("exams", f"{exame}: escolha pertinente", False, weight=2)
-        st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
-        return "Exame não aplicável a este caso clínico."
         add_checklist("exams", f"{exame}: escolha pertinente", False, weight=2)
         st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
         return "Exame não aplicável a este caso clínico."
@@ -215,112 +212,114 @@ def fornecer_resultado_exame(exame):
     # -------- Laudos determinísticos --------
     if indication == "inadequado":
         resultado = f"O exame solicitado ({exame}) não é indicado para este quadro clínico e não contribui para o diagnóstico."
-    else:
-        if exame == "EAS":
-            if indication in ["alterado", "hematúria"]:
-                leucocitos = "1-5 /campo"
-                nitrito = "Negativo"
-                sangue = "Negativo"
 
-                hemat = truth.get("hematúria")
-                if hemat == "microscópica":
-                    sangue = "Traços (hematúria microscópica)"
-                elif hemat == "macroscópica":
-                    sangue = "Positivo (hematúria macroscópica)"
+    elif exame == "EAS":
+        if indication in ["alterado", "hematúria"]:
+            leucocitos = "1-5 /campo"
+            nitrito = "Negativo"
+            sangue = "Negativo"
 
-                if truth.get("disuria") or truth.get("urgencia") or truth.get("polaciuria"):
-                    leucocitos = "5-30 /campo"
-                    nitrito = "Positivo"
+            hemat = truth.get("hematúria")
+            if hemat == "microscópica":
+                sangue = "Traços (hematúria microscópica)"
+            elif hemat == "macroscópica":
+                sangue = "Positivo (hematúria macroscópica)"
 
-                resultado = (
-                    "Exame: EAS (Urina tipo I)\n"
-                    "Aparência: Ligeiramente turva\n"
-                    "pH: 6.0\n"
-                    f"Leucócitos (microscopia): {leucocitos}\n"
-                    f"Nitrito: {nitrito}\n"
-                    f"Sangue: {sangue}\n"
-                    "Sedimentoscopia: bactérias presentes, hemácias conforme descrito acima.\n"
-                )
-            else:
-                resultado = (
-                    "Exame: EAS (Urina tipo I)\n"
-                    "Resultado: Normal\n"
-                    "Nenhuma alteração significante ao exame de urina tipo I."
-                )
+            if truth.get("disuria") or truth.get("urgencia") or truth.get("polaciuria"):
+                leucocitos = "5-30 /campo"
+                nitrito = "Positivo"
 
-        elif exame == "Urinocultura":
-            if indication == "positiva":
-                resultado = (
-                    "Exame: Urinocultura\n"
-                    "Crescimento: >10^5 UFC/mL\n"
-                    "Agente isolado: Escherichia coli\n"
-                    "Antibiograma (exemplo):\n"
-                    " - Nitrofurantoína: Sensível\n"
-                    " - Trimetoprim-sulfametoxazol: Sensível\n"
-                    " - Ciprofloxacino: Sensível\n"
-                )
-            else:
-                resultado = (
-                    "Exame: Urinocultura\n"
-                    "Resultado: Sem crescimento bacteriano relevante.\n"
-                    "Interpretação: Sem bacteriúria significativa para cultura."
-                )
-
-        elif exame == "Ultrassom":
-            if indication == "normal":
-                resultado = (
-                    "Exame: Ultrassonografia de vias urinárias\n"
-                    "Achados: Rins com dimensões e morfologia preservadas. "
-                    "Sem dilatação do sistema coletor. Bexiga sem alterações focais relevantes.\n"
-                )
-            else:
-                resultado = (
-                    "Exame: Ultrassonografia de vias urinárias\n"
-                    f"Achados: {indication}\n"
-                )
-
-        elif exame == "TC abdome":
-            achados = []
-            ind_text = str(indication).lower() if indication else ""
-
-            if "cálculo" in ind_text or "ureteral" in ind_text:
-                achados.append(
-                    "Imagem hiperdensa em topografia de ureter, compatível com cálculo ureteral, "
-                    "associada a discreta dilatação pielocalicial a montante."
-                )
-
-            if truth.get("hematúria") and truth.get("dor_lombar"):
-                if not any("cálculo" in a.lower() for a in achados):
-                    achados.append(
-                        "Sinais compatíveis com litíase: foco hiperdenso em ureter e hidronefrose discreta a montante."
-                    )
-
-            if truth.get("febre") and truth.get("calafrios"):
-                achados.append(
-                    "Rim com aumento discreto de volume e estriações do parênquima, sugestivas de processo inflamatório (compatível com pielonefrite)."
-                )
-
-            if truth.get("tabagismo") and truth.get("hematúria") == "macroscópica":
-                achados.append(
-                    "Espessamento parietal irregular da bexiga, sugestivo de lesão expansiva (avaliação urológica recomendada)."
-                )
-
-            if not achados:
-                resultado = (
-                    "Exame: TC de abdome/pelve\n"
-                    "Achados: Ausência de alterações tomográficas significativas."
-                )
-            else:
-                resultado = "Exame: TC de abdome/pelve\nAchados:\n- " + "\n- ".join(achados) + "\n"
+            resultado = (
+                "Exame: EAS (Urina tipo I)\n"
+                "Aparência: Ligeiramente turva\n"
+                "pH: 6.0\n"
+                f"Leucócitos (microscopia): {leucocitos}\n"
+                f"Nitrito: {nitrito}\n"
+                f"Sangue: {sangue}\n"
+                "Sedimentoscopia: bactérias presentes, hemácias conforme descrito acima.\n"
+            )
         else:
-            resultado = f"Exame: {exame}\nResultado: {indication}"
+            resultado = (
+                "Exame: EAS (Urina tipo I)\n"
+                "Resultado: Normal\n"
+                "Nenhuma alteração significante ao exame de urina tipo I."
+            )
 
-    # Persistir resultado
+    elif exame == "Urinocultura":
+        if indication == "positiva":
+            resultado = (
+                "Exame: Urinocultura\n"
+                "Crescimento: >10^5 UFC/mL\n"
+                "Agente isolado: Escherichia coli\n"
+                "Antibiograma (exemplo):\n"
+                " - Nitrofurantoína: Sensível\n"
+                " - Trimetoprim-sulfametoxazol: Sensível\n"
+                " - Ciprofloxacino: Sensível\n"
+            )
+        else:
+            resultado = (
+                "Exame: Urinocultura\n"
+                "Resultado: Sem crescimento bacteriano relevante.\n"
+                "Interpretação: Sem bacteriúria significativa para cultura."
+            )
+
+    elif exame == "Ultrassom":
+        if indication == "normal":
+            resultado = (
+                "Exame: Ultrassonografia de vias urinárias\n"
+                "Achados: Rins com dimensões e morfologia preservadas. "
+                "Sem dilatação do sistema coletor. Bexiga sem alterações focais relevantes.\n"
+            )
+        else:
+            resultado = (
+                "Exame: Ultrassonografia de vias urinárias\n"
+                f"Achados: {indication}\n"
+            )
+
+    elif exame == "TC abdome":
+        achados = []
+        ind_text = str(indication).lower() if indication else ""
+
+        if "cálculo" in ind_text or "ureteral" in ind_text:
+            achados.append(
+                "Imagem hiperdensa em topografia de ureter, compatível com cálculo ureteral, "
+                "associada a discreta dilatação pielocalicial a montante."
+            )
+
+        if truth.get("hematúria") and truth.get("dor_lombar"):
+            if not any("cálculo" in a.lower() for a in achados):
+                achados.append(
+                    "Sinais compatíveis com litíase: foco hiperdenso em ureter e hidronefrose discreta a montante."
+                )
+
+        if truth.get("febre") and truth.get("calafrios"):
+            achados.append(
+                "Rim com aumento discreto de volume e estriações do parênquima, sugestivas de processo inflamatório (compatível com pielonefrite)."
+            )
+
+        if truth.get("tabagismo") and truth.get("hematúria") == "macroscópica":
+            achados.append(
+                "Espessamento parietal irregular da bexiga, sugestivo de lesão expansiva (avaliação urológica recomendada)."
+            )
+
+        if not achados:
+            resultado = (
+                "Exame: TC de abdome/pelve\n"
+                "Achados: Ausência de alterações tomográficas significativas."
+            )
+        else:
+            resultado = "Exame: TC de abdome/pelve\nAchados:\n- " + "\n- ".join(achados) + "\n"
+
+    else:
+        resultado = f"Exame: {exame}\nResultado: {indication}"
+
+       # Persistir resultado
     if "exam_results" not in st.session_state:
         st.session_state.exam_results = {}
     st.session_state.exam_results[exame] = resultado
 
-       # log OSCE
+    # log + score
+    st.session_state.osce["exam_log"].append({"exam": exame, "pertinence": pertinence})
     st.session_state.osce["scores"]["exams"] = score_from_checklist("exams")
 
     # NÃO adicionar laudo no chat_history para não duplicar na anamnese.
@@ -1387,6 +1386,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
