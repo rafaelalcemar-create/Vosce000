@@ -1096,7 +1096,7 @@ elif st.session_state.screen == "anamnesis":
     # =========================
     with st.form("form_pergunta", clear_on_submit=True):
         pergunta = st.text_input("Pergunta:", key="pergunta_atual")
-        enviar = st.form_submit_button("Enviar")
+        enviar = st.form_submit_button("Enviar", use_container_width=True)
 
     if enviar and pergunta.strip():
         st.session_state.chat_history.append(("aluno", pergunta))
@@ -1406,6 +1406,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
