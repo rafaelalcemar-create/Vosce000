@@ -569,49 +569,43 @@ st.markdown("""
         border-radius: 10px !important;
         font-size: 18px !important;
     }
-/* Botões normais */
-.stButton > button {
-    background-color: #0ea5e9 !important;
-    color: white !important;
-    font-size: 20px !important;
-    font-weight: 600 !important;
-    border-radius: 12px !important;
-    padding: 12px !important;
-    width: 100% !important;
-}
 
-/* ✅ Botão de submit dentro de st.form (form_submit_button) */
-div[data-testid="stFormSubmitButton"] > button {
-    background-color: #0ea5e9 !important;
-    color: white !important;
-    font-size: 20px !important;
-    font-weight: 600 !important;
-    border-radius: 12px !important;
-    padding: 12px !important;
-    width: 100% !important;
-    border: none !important;
-}
-
-/* opcional: hover */
-div[data-testid="stFormSubmitButton"] > button:hover,
-.stButton > button:hover {
-    filter: brightness(0.95) !important;
-}
-    .chat-bubble-user {
-        background-color: #bae6fd !important;
-        border-left: 4px solid #0ea5e9 !important;
+    /* Botões normais */
+    .stButton > button {
+        background-color: #0ea5e9 !important;
+        color: white !important;
+        font-size: 20px !important;
+        font-weight: 600 !important;
+        border-radius: 12px !important;
         padding: 12px !important;
-        border-radius: 6px !important;
-        margin-bottom: 10px;
-        font-size: 18px !important;
+        width: 100% !important;
     }
-    .chat-bubble-ai {
-        background-color: #e2e8f0 !important;
-        border-left: 4px solid #38bdf8 !important;
+
+    /* Botão de submit do st.form (Enviar) */
+    div[data-testid="stFormSubmitButton"] > button {
+        background-color: #0ea5e9 !important;
+        color: white !important;
+        font-size: 20px !important;
+        font-weight: 600 !important;
+        border-radius: 12px !important;
         padding: 12px !important;
-        border-radius: 6px !important;
-        margin-bottom: 10px;
-        font-size: 18px !important;
+        width: 100% !important;
+        border: none !important;
+    }
+
+    /* ✅ padroniza altura/alinhamento de TODOS os botões */
+    .stButton > button,
+    div[data-testid="stFormSubmitButton"] > button {
+        height: 52px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin-top: 0px !important;
+    }
+
+    /* ✅ remove variações de espaçamento entre colunas */
+    div[data-testid="column"] {
+        padding-top: 0rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1111,7 +1105,22 @@ elif st.session_state.screen == "anamnesis":
     # =========================
     # NAVEGAÇÃO
     # =========================
-    col1, col2, col3 = st.columns([1, 1, 1])
+col1, col2, col3 = st.columns(3, gap="large")
+
+with col1:
+    if st.button("Ir para exame físico", use_container_width=True):
+        st.session_state.screen = "physical_exam"
+        st.rerun()
+
+with col2:
+    if st.button("Solicitar exame", use_container_width=True):
+        st.session_state.screen = "exams"
+        st.rerun()
+
+with col3:
+    if st.button("Ir para diagnóstico", use_container_width=True):
+        st.session_state.screen = "diagnosis"
+        st.rerun()
     with col1:
         if st.button("Ir para exame físico"):
             st.session_state.screen = "physical_exam"
@@ -1406,6 +1415,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
