@@ -1086,7 +1086,7 @@ elif st.session_state.screen == "anamnesis":
             )
 
     # =========================
-    # INPUT + ENVIAR (COM FORM PARA LIMPAR AUTOMATICAMENTE)
+    # INPUT + ENVIAR (FORM)
     # =========================
     with st.form("form_pergunta", clear_on_submit=True):
         pergunta = st.text_input("Pergunta:", key="pergunta_atual")
@@ -1094,43 +1094,28 @@ elif st.session_state.screen == "anamnesis":
 
     if enviar and pergunta.strip():
         st.session_state.chat_history.append(("aluno", pergunta))
-
-        # avalia postura/comunicação
         evaluate_communication_turn(pergunta)
-
         resposta = responder_como_paciente(pergunta)
         st.session_state.chat_history.append(("paciente", resposta))
-
         st.rerun()
+
     # =========================
     # NAVEGAÇÃO
     # =========================
-col1, col2, col3 = st.columns(3, gap="large")
+    col1, col2, col3 = st.columns(3, gap="large")
 
-with col1:
-    if st.button("Ir para exame físico", use_container_width=True):
-        st.session_state.screen = "physical_exam"
-        st.rerun()
-
-with col2:
-    if st.button("Solicitar exame", use_container_width=True):
-        st.session_state.screen = "exams"
-        st.rerun()
-
-with col3:
-    if st.button("Ir para diagnóstico", use_container_width=True):
-        st.session_state.screen = "diagnosis"
-        st.rerun()
     with col1:
-        if st.button("Ir para exame físico"):
+        if st.button("Ir para exame físico", use_container_width=True):
             st.session_state.screen = "physical_exam"
             st.rerun()
+
     with col2:
-        if st.button("Solicitar exame"):
+        if st.button("Solicitar exame", use_container_width=True):
             st.session_state.screen = "exams"
             st.rerun()
+
     with col3:
-        if st.button("Ir para diagnóstico"):
+        if st.button("Ir para diagnóstico", use_container_width=True):
             st.session_state.screen = "diagnosis"
             st.rerun()
 
@@ -1415,6 +1400,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
