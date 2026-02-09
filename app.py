@@ -110,9 +110,9 @@ def responder_como_paciente(pergunta: str) -> str:
         nome = truth.get("nome")
         return f"Meu nome é {nome}." if nome else "Meu nome não foi informado."
 
-   if has_word(q, "idade") or "quantos anos" in q:
-    idade = truth.get("idade")
-    return f"Tenho {idade} anos." if idade else "Idade não informada."
+    if has_word(q, "idade") or "quantos anos" in q:
+        idade = truth.get("idade")
+        return f"Tenho {idade} anos." if idade else "Idade não informada."
 
     if any(k in q for k in ["sexo", "gênero", "genero", "masculino", "feminino"]):
         sexo = truth.get("sexo")
@@ -1078,22 +1078,22 @@ elif st.session_state.screen == "anamnesis":
     pergunta = st.text_input("Pergunta:", key="pergunta_atual")
 
     # =========================
-# ENVIAR PERGUNTA
-# =========================
-if st.button("Enviar"):
-    if pergunta.strip():
-        st.session_state.chat_history.append(("aluno", pergunta))
+    # ENVIAR PERGUNTA
+    # =========================
+    if st.button("Enviar"):
+        if pergunta.strip():
+            st.session_state.chat_history.append(("aluno", pergunta))
 
-        # avalia postura/comunicação
-        evaluate_communication_turn(pergunta)
+            # avalia postura/comunicação
+            evaluate_communication_turn(pergunta)
 
-        resposta = responder_como_paciente(pergunta)
-        st.session_state.chat_history.append(("paciente", resposta))
+            resposta = responder_como_paciente(pergunta)
+            st.session_state.chat_history.append(("paciente", resposta))
 
-        # ✅ LIMPA o campo após enviar
-        st.session_state["pergunta_atual"] = ""
-        st.rerun()
+            # ✅ LIMPA o campo após enviar
+            st.session_state["pergunta_atual"] = ""
 
+            st.rerun()
     # =========================
     # NAVEGAÇÃO
     # =========================
@@ -1392,6 +1392,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
