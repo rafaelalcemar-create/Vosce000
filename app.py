@@ -1073,27 +1073,22 @@ elif st.session_state.screen == "anamnesis":
             )
 
     # =========================
-    # INPUT DA PERGUNTA
+    # INPUT + ENVIAR (COM FORM PARA LIMPAR AUTOMATICAMENTE)
     # =========================
-    pergunta = st.text_input("Pergunta:", key="pergunta_atual")
+    with st.form("form_pergunta", clear_on_submit=True):
+        pergunta = st.text_input("Pergunta:", key="pergunta_atual")
+        enviar = st.form_submit_button("Enviar")
 
-    # =========================
-    # ENVIAR PERGUNTA
-    # =========================
-    if st.button("Enviar"):
-        if pergunta.strip():
-            st.session_state.chat_history.append(("aluno", pergunta))
+    if enviar and pergunta.strip():
+        st.session_state.chat_history.append(("aluno", pergunta))
 
-            # avalia postura/comunicação
-            evaluate_communication_turn(pergunta)
+        # avalia postura/comunicação
+        evaluate_communication_turn(pergunta)
 
-            resposta = responder_como_paciente(pergunta)
-            st.session_state.chat_history.append(("paciente", resposta))
+        resposta = responder_como_paciente(pergunta)
+        st.session_state.chat_history.append(("paciente", resposta))
 
-            # ✅ LIMPA o campo após enviar
-            st.session_state["pergunta_atual"] = ""
-
-            st.rerun()
+        st.rerun()
     # =========================
     # NAVEGAÇÃO
     # =========================
@@ -1392,6 +1387,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
