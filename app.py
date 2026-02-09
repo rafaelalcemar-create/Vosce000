@@ -561,6 +561,8 @@ st.markdown("""
         font-weight: 800 !important;
         text-align: center !important;
     }
+
+    /* Inputs */
     .stTextInput > div > div > input,
     .stSelectbox div[data-baseweb="select"] > div {
         background-color: #ffffff !important;
@@ -570,40 +572,51 @@ st.markdown("""
         font-size: 18px !important;
     }
 
-    /* Botões normais */
-    .stButton > button {
-        background-color: #0ea5e9 !important;
-        color: white !important;
-        font-size: 20px !important;
-        font-weight: 600 !important;
-        border-radius: 12px !important;
+    /* =========================
+       CHAT EM BOLHAS (VOLTA O BONITO)
+       ========================= */
+    .chat-bubble-user {
+        background-color: #bae6fd !important;
+        border-left: 4px solid #0ea5e9 !important;
         padding: 12px !important;
-        width: 100% !important;
+        border-radius: 8px !important;
+        margin: 10px 0 !important;
+        font-size: 18px !important;
+    }
+    .chat-bubble-ai {
+        background-color: #e2e8f0 !important;
+        border-left: 4px solid #38bdf8 !important;
+        padding: 12px !important;
+        border-radius: 8px !important;
+        margin: 10px 0 !important;
+        font-size: 18px !important;
     }
 
-    /* Botão de submit do st.form (Enviar) */
-    div[data-testid="stFormSubmitButton"] > button {
-        background-color: #0ea5e9 !important;
-        color: white !important;
-        font-size: 20px !important;
-        font-weight: 600 !important;
-        border-radius: 12px !important;
-        padding: 12px !important;
-        width: 100% !important;
-        border: none !important;
-    }
-
-    /* ✅ padroniza altura/alinhamento de TODOS os botões */
+    /* Botões: estilo, mas SEM forçar 100% em todos */
     .stButton > button,
     div[data-testid="stFormSubmitButton"] > button {
+        background-color: #0ea5e9 !important;
+        color: white !important;
+        font-size: 20px !important;
+        font-weight: 600 !important;
+        border-radius: 12px !important;
+        padding: 12px !important;
+        border: none !important;
+
         height: 52px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         margin-top: 0px !important;
+        box-sizing: border-box !important;
     }
 
-    /* ✅ remove variações de espaçamento entre colunas */
+    /* ✅ Só o botão do FORM (Enviar) fica largura total */
+    div[data-testid="stFormSubmitButton"] > button {
+        width: 100% !important;
+    }
+
+    /* ✅ Colunas sem “pulos” */
     div[data-testid="column"] {
         padding-top: 0rem !important;
     }
@@ -1057,17 +1070,8 @@ elif st.session_state.screen == "case_intro":
 elif st.session_state.screen == "anamnesis":
 
     # =========================
-    # HISTÓRICO DA CONVERSA (COM BOLHAS)
+    # HISTÓRICO DA CONVERSA (BOLHAS)
     # =========================
-    if st.session_state.get("exam_results"):
-        st.markdown("**Resultados de exames solicitados:**")
-        for ex, laudo in st.session_state.exam_results.items():
-            laudo_html = str(laudo).replace("\n", "<br>")
-            st.markdown(
-                f"<div class='chat-bubble-ai'><b>Laudo ({ex}):</b><br>{laudo_html}</div>",
-                unsafe_allow_html=True
-            )
-
     for sender, msg in st.session_state.chat_history:
         safe_msg = str(msg).replace("\n", "<br>")
         if sender == "aluno":
@@ -1085,7 +1089,6 @@ elif st.session_state.screen == "anamnesis":
                 f"<div class='chat-bubble-ai'><b>Sistema:</b><pre style='white-space:pre-wrap'>{msg}</pre></div>",
                 unsafe_allow_html=True
             )
-
     # =========================
     # INPUT + ENVIAR (FORM)
     # =========================
@@ -1101,21 +1104,21 @@ elif st.session_state.screen == "anamnesis":
         st.rerun()
 
     # =========================
-    # NAVEGAÇÃO
+    # NAVEGAÇÃO (CENTRALIZADA)
     # =========================
-    col1, col2, col3 = st.columns(3, gap="large")
+    left, c1, gap1, c2, gap2, c3, right = st.columns([1, 2, 0.6, 2, 0.6, 2, 1])
 
-    with col1:
+    with c1:
         if st.button("Ir para exame físico", use_container_width=True):
             st.session_state.screen = "physical_exam"
             st.rerun()
 
-    with col2:
+    with c2:
         if st.button("Solicitar exame", use_container_width=True):
             st.session_state.screen = "exams"
             st.rerun()
 
-    with col3:
+    with c3:
         if st.button("Ir para diagnóstico", use_container_width=True):
             st.session_state.screen = "diagnosis"
             st.rerun()
@@ -1401,6 +1404,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
