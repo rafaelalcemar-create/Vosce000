@@ -1057,7 +1057,7 @@ elif st.session_state.screen == "case_intro":
 elif st.session_state.screen == "anamnesis":
 
     # =========================
-    # HISTÓRICO DA CONVERSA
+    # HISTÓRICO DA CONVERSA (COM BOLHAS)
     # =========================
     if st.session_state.get("exam_results"):
         st.markdown("**Resultados de exames solicitados:**")
@@ -1069,14 +1069,15 @@ elif st.session_state.screen == "anamnesis":
             )
 
     for sender, msg in st.session_state.chat_history:
+        safe_msg = str(msg).replace("\n", "<br>")
         if sender == "aluno":
             st.markdown(
-                f"<div class='chat-bubble-user'><b>Você:</b> {msg}</div>",
+                f"<div class='chat-bubble-user'><b>Você:</b> {safe_msg}</div>",
                 unsafe_allow_html=True
             )
         elif sender == "paciente":
             st.markdown(
-                f"<div class='chat-bubble-ai'><b>Paciente:</b> {msg}</div>",
+                f"<div class='chat-bubble-ai'><b>Paciente:</b> {safe_msg}</div>",
                 unsafe_allow_html=True
             )
         else:
@@ -1400,6 +1401,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
