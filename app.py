@@ -1,4 +1,5 @@
 import os
+import re
 import streamlit as st
 import google.generativeai as genai
 
@@ -85,6 +86,9 @@ def communication_summary_text():
     if len(flags) > 5:
         lines.append(f"- (+{len(flags)-5} outras)")
     return "\n".join(lines)
+    # ✅ helper para evitar substring (ex.: "intensidade" contém "idade")
+def has_word(text: str, word: str) -> bool:
+    return re.search(rf"\b{re.escape(word)}\b", (text or "").lower()) is not None
 def responder_como_paciente(pergunta: str) -> str:
     """
     Paciente OSCE com controle de vazamento de informação:
@@ -106,9 +110,9 @@ def responder_como_paciente(pergunta: str) -> str:
         nome = truth.get("nome")
         return f"Meu nome é {nome}." if nome else "Meu nome não foi informado."
 
-    if "idade" in q or "quantos anos" in q:
-        idade = truth.get("idade")
-        return f"Tenho {idade} anos." if idade else "Idade não informada."
+   if has_word(q, "idade") or "quantos anos" in q:
+    idade = truth.get("idade")
+    return f"Tenho {idade} anos." if idade else "Idade não informada."
 
     if any(k in q for k in ["sexo", "gênero", "genero", "masculino", "feminino"]):
         sexo = truth.get("sexo")
@@ -1074,19 +1078,21 @@ elif st.session_state.screen == "anamnesis":
     pergunta = st.text_input("Pergunta:", key="pergunta_atual")
 
     # =========================
-    # ENVIAR PERGUNTA
-    # =========================
-    if st.button("Enviar"):
-        if pergunta.strip():
-            st.session_state.chat_history.append(("aluno", pergunta))
+# ENVIAR PERGUNTA
+# =========================
+if st.button("Enviar"):
+    if pergunta.strip():
+        st.session_state.chat_history.append(("aluno", pergunta))
 
-            # avalia postura/comunicação
-            evaluate_communication_turn(pergunta)
+        # avalia postura/comunicação
+        evaluate_communication_turn(pergunta)
 
-            resposta = responder_como_paciente(pergunta)
-            st.session_state.chat_history.append(("paciente", resposta))
+        resposta = responder_como_paciente(pergunta)
+        st.session_state.chat_history.append(("paciente", resposta))
 
-            st.rerun()
+        # ✅ LIMPA o campo após enviar
+        st.session_state["pergunta_atual"] = ""
+        st.rerun()
 
     # =========================
     # NAVEGAÇÃO
@@ -1386,6 +1392,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
