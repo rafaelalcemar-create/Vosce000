@@ -569,15 +569,34 @@ st.markdown("""
         border-radius: 10px !important;
         font-size: 18px !important;
     }
-    .stButton>button {
-        background-color: #0ea5e9 !important;
-        color: white !important;
-        font-size: 20px !important;
-        font-weight: 600 !important;
-        border-radius: 12px !important;
-        padding: 12px;
-        width: 100%;
-    }
+/* Botões normais */
+.stButton > button {
+    background-color: #0ea5e9 !important;
+    color: white !important;
+    font-size: 20px !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
+    width: 100% !important;
+}
+
+/* ✅ Botão de submit dentro de st.form (form_submit_button) */
+div[data-testid="stFormSubmitButton"] > button {
+    background-color: #0ea5e9 !important;
+    color: white !important;
+    font-size: 20px !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+    padding: 12px !important;
+    width: 100% !important;
+    border: none !important;
+}
+
+/* opcional: hover */
+div[data-testid="stFormSubmitButton"] > button:hover,
+.stButton > button:hover {
+    filter: brightness(0.95) !important;
+}
     .chat-bubble-user {
         background-color: #bae6fd !important;
         border-left: 4px solid #0ea5e9 !important;
@@ -1387,6 +1406,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
