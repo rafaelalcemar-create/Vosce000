@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 import streamlit as st
 import google.generativeai as genai
 
@@ -976,18 +977,51 @@ def score_from_checklist(domain: str) -> float:
 # ============================
 if st.session_state.screen == "home":
 
-    st.markdown("<h1>V-OSCE Urologia</h1>", unsafe_allow_html=True)
-    st.markdown("<p>Simulador clínico para treinamento prático.</p>", unsafe_allow_html=True)
+    col1, col2 = st.columns([1.3,1])
 
-    nome = st.text_input("Nome do aluno:")
-    if st.button("Entrar"):
-        if not nome.strip():
-            st.error("Preencha seu nome.")
-        else:
-            st.session_state.student_name = nome
-            st.session_state.screen = "select_syndrome"
-            st.rerun()
+    with col1:
 
+        st.markdown("<h1>V-OSCE Urologia</h1>", unsafe_allow_html=True)
+
+        st.markdown(
+        """
+        Simulador clínico para treinamento prático em urologia.
+
+        Treine:
+        - anamnese
+        - exame físico
+        - solicitação de exames
+        - diagnóstico
+        - conduta clínica
+        """,
+        )
+
+        st.markdown("---")
+
+        nome = st.text_input("Como você gostaria de ser chamado?")
+
+        if st.button("Iniciar simulação"):
+
+            if not nome.strip():
+                st.error("Digite seu nome para continuar.")
+            else:
+                st.session_state.student_name = nome
+                st.session_state.screen = "select_syndrome"
+                st.rerun()
+
+    with col2:
+
+        st.image("avatar_professor.png")
+
+        st.markdown(
+        """
+        **Preceptor virtual**
+
+        Este simulador foi criado para treinar
+        raciocínio clínico em urologia no formato
+        de OSCE interativo.
+        """
+        )
 # ============================
 # TELA 2 — SELEÇÃO DA SÍNDROME
 # ============================
@@ -1404,6 +1438,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
