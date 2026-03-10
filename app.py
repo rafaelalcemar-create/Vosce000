@@ -977,50 +977,62 @@ def score_from_checklist(domain: str) -> float:
 # ============================
 if st.session_state.screen == "home":
 
-    col1, col2 = st.columns([1.3,1])
+    col1, col2 = st.columns([1.55, 0.75])
 
     with col1:
-
         st.markdown("<h1>V-OSCE Urologia</h1>", unsafe_allow_html=True)
 
         st.markdown(
-        """
-        Simulador clínico para treinamento prático em urologia.
+            """
+            <p style="font-size:18px; color:#334155; margin-bottom:8px;">
+                Simulador clínico para treinamento prático em urologia.
+            </p>
 
-        Treine:
-        - anamnese
-        - exame físico
-        - solicitação de exames
-        - diagnóstico
-        - conduta clínica
-        """,
+            <p style="font-size:16px; color:#475569; line-height:1.6; margin-top:0;">
+                Bem-vindo ao ambiente de simulação clínica. Insira seu nome para iniciar
+                o atendimento e treinar sua tomada de decisão em casos urológicos.
+            </p>
+            """,
+            unsafe_allow_html=True
         )
 
-        st.markdown("---")
+        st.markdown(
+            """
+            <div style="margin-top:28px; margin-bottom:8px; font-size:17px; font-weight:600; color:#0f172a;">
+                Qual é o seu nome?
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        nome = st.text_input("Como você gostaria de ser chamado?")
+        nome = st.text_input(
+            "Digite seu nome",
+            label_visibility="collapsed"
+        )
 
         if st.button("Iniciar simulação"):
-
             if not nome.strip():
                 st.error("Digite seu nome para continuar.")
             else:
-                st.session_state.student_name = nome
+                st.session_state.student_name = nome.strip()
                 st.session_state.screen = "select_syndrome"
                 st.rerun()
 
     with col2:
-
-        st.image("avatar_professor.png")
+        st.image("avatar_professor.png", width=220)
 
         st.markdown(
-        """
-        **Preceptor virtual**
-
-        Este simulador foi criado para treinar
-        raciocínio clínico em urologia no formato
-        de OSCE interativo.
-        """
+            """
+            <div style="margin-top:10px;">
+                <div style="font-size:18px; font-weight:700; color:#0f172a;">
+                    Preceptor virtual
+                </div>
+                <div style="font-size:15px; color:#475569; line-height:1.5; margin-top:6px;">
+                    Acompanhamento interativo durante a simulação.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 # ============================
 # TELA 2 — SELEÇÃO DA SÍNDROME
@@ -1438,6 +1450,7 @@ elif st.session_state.screen == "final_report":
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
+
 
 
 
