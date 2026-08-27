@@ -33,7 +33,7 @@ if not API_KEY:
     st.stop()
 
 genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel("gemini-2.0-flash")
+model = genai.GenerativeModel("gemini-3.6-flash")
 # ============================
 # AVALIAÇÃO DE COMUNICAÇÃO/POSTURA (regras objetivas + flags)
 # ============================
